@@ -2,11 +2,15 @@ import { useEffect, useState } from 'react'
 import Navbar from './components/Navbar'
 import Hero from './components/Hero'
 import { StartupQuickForm, InvestorQuickForm } from './components/QuickForms'
+import GoogleSignIn from './components/GoogleSignIn'
 
 function App() {
   const [tab, setTab] = useState('home')
   const [startups, setStartups] = useState([])
   const [investors, setInvestors] = useState([])
+  const [profile, setProfile] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('authProfile') || 'null') } catch { return null }
+  })
   const base = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
 
   const loadLists = async () => {
@@ -30,7 +34,16 @@ function App() {
           <Hero />
           <section id="get-started" className="max-w-6xl mx-auto px-6 py-12 grid md:grid-cols-2 gap-8">
             <div className="bg-white rounded-xl shadow p-6">
-              <h3 className="text-xl font-semibold mb-2">Create a Startup Profile</h3>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xl font-semibold">Create a Startup Profile</h3>
+                {!profile && <GoogleSignIn onSuccess={setProfile} />}
+                {profile && (
+                  <div className="flex items-center gap-2 text-sm text-slate-600">
+                    <img src={profile.picture} alt="avatar" className="w-6 h-6 rounded-full" />
+                    <span>{profile.name || profile.email}</span>
+                  </div>
+                )}
+              </div>
               <p className="text-slate-600 mb-4">Share your problem, solution, traction, and funding needs.</p>
               <StartupQuickForm onCreated={loadLists} />
             </div>
@@ -71,7 +84,7 @@ function App() {
 
       {tab === 'matchmaking' && <Matchmaking />}
       {tab === 'chat' && <ChatPreview />}
-      {tab === 'profile' && <ProfileInfo />}
+      {tab === 'profile' && <ProfileInfo profile={profile} onSignOut={() => { localStorage.removeItem('authProfile'); setProfile(null) }} />}
       {tab === 'resources' && <Resources />}
     </div>
   )
@@ -135,11 +148,27 @@ function ChatPreview() {
   )
 }
 
-function ProfileInfo() {
+function ProfileInfo({ profile, onSignOut }) {
   return (
     <section className="max-w-3xl mx-auto px-6 py-10">
       <h2 className="text-2xl font-bold mb-4">Profile</h2>
-      <p className="text-slate-600">Choose to create a startup or investor profile from the home section above.</p>
+      {!profile ? (
+        <div className="bg-white rounded-xl shadow p-6">
+          <p className="text-slate-600 mb-4">Sign in to personalize your experience.</p>
+          <GoogleSignIn onSuccess={() => window.location.reload()} />
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl shadow p-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <img src={profile.picture} alt="avatar" className="w-12 h-12 rounded-full" />
+            <div>
+              <div className="font-semibold">{profile.name}</div>
+              <div className="text-slate-600 text-sm">{profile.email}</div>
+            </div>
+          </div>
+          <button className="px-3 py-2 rounded-md bg-slate-900 text-white" onClick={onSignOut}>Sign out</button>
+        </div>
+      )}
     </section>
   )
 }
