@@ -1,27 +1,159 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import Navbar from './components/Navbar'
+import Hero from './components/Hero'
+import { StartupQuickForm, InvestorQuickForm } from './components/QuickForms'
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [tab, setTab] = useState('home')
+  const [startups, setStartups] = useState([])
+  const [investors, setInvestors] = useState([])
+  const base = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
+
+  const loadLists = async () => {
+    try {
+      const [sRes, iRes] = await Promise.all([
+        fetch(`${base}/api/startups`).then(r=>r.json()),
+        fetch(`${base}/api/investors`).then(r=>r.json()),
+      ])
+      setStartups(sRes)
+      setInvestors(iRes)
+    } catch (e) { console.error(e) }
+  }
+
+  useEffect(() => { loadLists() }, [])
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 flex items-center justify-center">
-      <div className="bg-white p-8 rounded-lg shadow-lg">
-        <h1 className="text-3xl font-bold text-gray-800 mb-4">
-          Vibe Coding Platform
-        </h1>
-        <p className="text-gray-600 mb-6">
-          Your AI-powered development environment
-        </p>
-        <div className="text-center">
-          <button
-            onClick={() => setCount(count + 1)}
-            className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded"
-          >
-            Count is {count}
-          </button>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-sky-50">
+      <Navbar current={tab} onNavigate={setTab} />
+      {tab === 'home' && (
+        <>
+          <Hero />
+          <section id="get-started" className="max-w-6xl mx-auto px-6 py-12 grid md:grid-cols-2 gap-8">
+            <div className="bg-white rounded-xl shadow p-6">
+              <h3 className="text-xl font-semibold mb-2">Create a Startup Profile</h3>
+              <p className="text-slate-600 mb-4">Share your problem, solution, traction, and funding needs.</p>
+              <StartupQuickForm onCreated={loadLists} />
+            </div>
+            <div className="bg-white rounded-xl shadow p-6">
+              <h3 className="text-xl font-semibold mb-2">Create an Investor Profile</h3>
+              <p className="text-slate-600 mb-4">Add your thesis, preferred stages, and ticket size.</p>
+              <InvestorQuickForm onCreated={loadLists} />
+            </div>
+          </section>
+          <section className="max-w-6xl mx-auto px-6 pb-16 grid md:grid-cols-2 gap-8">
+            <div className="bg-white rounded-xl shadow p-6">
+              <h4 className="font-semibold mb-3">Latest Startups</h4>
+              <ul className="divide-y">
+                {startups.map(s => (
+                  <li key={s._id} className="py-3">
+                    <div className="font-medium">{s.name}</div>
+                    <div className="text-sm text-slate-600">{s.tagline}</div>
+                  </li>
+                ))}
+                {startups.length === 0 && <li className="py-3 text-slate-500">No startups yet.</li>}
+              </ul>
+            </div>
+            <div className="bg-white rounded-xl shadow p-6">
+              <h4 className="font-semibold mb-3">Latest Investors</h4>
+              <ul className="divide-y">
+                {investors.map(i => (
+                  <li key={i._id} className="py-3">
+                    <div className="font-medium">{i.name}</div>
+                    <div className="text-sm text-slate-600">Stages: {(i.preferred_stage||[]).join(', ')}</div>
+                  </li>
+                ))}
+                {investors.length === 0 && <li className="py-3 text-slate-500">No investors yet.</li>}
+              </ul>
+            </div>
+          </section>
+        </>
+      )}
+
+      {tab === 'matchmaking' && <Matchmaking />}
+      {tab === 'chat' && <ChatPreview />}
+      {tab === 'profile' && <ProfileInfo />}
+      {tab === 'resources' && <Resources />}
+    </div>
+  )
+}
+
+function Matchmaking() {
+  const [filters, setFilters] = useState({ industry: '', stage: '', geography: '', ticket_min: '', ticket_max: '' })
+  const [results, setResults] = useState([])
+  const base = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
+
+  const search = async () => {
+    const body = {
+      industry: filters.industry ? filters.industry.split(',').map(s=>s.trim()) : null,
+      stage: filters.stage || null,
+      geography: filters.geography || null,
+      ticket_min: filters.ticket_min ? Number(filters.ticket_min) : null,
+      ticket_max: filters.ticket_max ? Number(filters.ticket_max) : null,
+    }
+    const res = await fetch(`${base}/api/matchmaking`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    const data = await res.json()
+    setResults(data)
+  }
+
+  return (
+    <section className="max-w-6xl mx-auto px-6 py-10">
+      <h2 className="text-2xl font-bold mb-4">Find Matches</h2>
+      <div className="bg-white rounded-xl shadow p-6">
+        <div className="grid md:grid-cols-5 gap-3">
+          <input className="border rounded px-3 py-2" placeholder="Industry (comma separated)" value={filters.industry} onChange={e=>setFilters({...filters, industry:e.target.value})} />
+          <select className="border rounded px-3 py-2" value={filters.stage} onChange={e=>setFilters({...filters, stage:e.target.value})}>
+            <option value="">Any stage</option>
+            {['idea','MVP','pre-seed','seed','series-a','series-b'].map(s=> <option key={s} value={s}>{s}</option>)}
+          </select>
+          <input className="border rounded px-3 py-2" placeholder="Geography" value={filters.geography} onChange={e=>setFilters({...filters, geography:e.target.value})} />
+          <input className="border rounded px-3 py-2" type="number" placeholder="Ticket min" value={filters.ticket_min} onChange={e=>setFilters({...filters, ticket_min:e.target.value})} />
+          <input className="border rounded px-3 py-2" type="number" placeholder="Ticket max" value={filters.ticket_max} onChange={e=>setFilters({...filters, ticket_max:e.target.value})} />
+        </div>
+        <button onClick={search} className="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Search</button>
+        <div className="mt-6">
+          <ul className="divide-y">
+            {results.map((m, idx) => (
+              <li key={idx} className="py-3">
+                <div className="font-medium">Match score: {m.score}</div>
+                <div className="text-sm text-slate-600">Startup {m.a_id} ↔ Investor {m.b_id}</div>
+              </li>
+            ))}
+            {results.length===0 && <li className="py-3 text-slate-500">No results yet. Adjust filters and search.</li>}
+          </ul>
         </div>
       </div>
-    </div>
+    </section>
+  )
+}
+
+function ChatPreview() {
+  return (
+    <section className="max-w-3xl mx-auto px-6 py-10">
+      <h2 className="text-2xl font-bold mb-4">Chat (Preview)</h2>
+      <p className="text-slate-600">Create profiles first, then implement conversations with IDs in a later iteration.</p>
+    </section>
+  )
+}
+
+function ProfileInfo() {
+  return (
+    <section className="max-w-3xl mx-auto px-6 py-10">
+      <h2 className="text-2xl font-bold mb-4">Profile</h2>
+      <p className="text-slate-600">Choose to create a startup or investor profile from the home section above.</p>
+    </section>
+  )
+}
+
+function Resources() {
+  return (
+    <section className="max-w-3xl mx-auto px-6 py-10">
+      <h2 className="text-2xl font-bold mb-4">Resources</h2>
+      <ul className="list-disc pl-6 text-slate-700 space-y-2">
+        <li>How to craft a compelling pitch</li>
+        <li>Understanding fundraising stages</li>
+        <li>Diligence checklist for investors</li>
+      </ul>
+    </section>
   )
 }
 
